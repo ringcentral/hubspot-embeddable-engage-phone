@@ -4,6 +4,10 @@ Experimental Engage Voice browser extension for Hubspot powered by [Engage Voice
 
 Created with [ringcentral-embeddable-extension-factory](https://github.com/ringcentral/ringcentral-embeddable-extension-factory), you could create similar extension for other CRM sites.
 
+## Video
+
+[https://youtu.be/1Pnj2Ymrmg8](https://youtu.be/1Pnj2Ymrmg8)
+
 ## Features
 
 - Click to call button
