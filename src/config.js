@@ -24,6 +24,9 @@ import { getDeals } from './feat/deal'
 import {
   getCompanyById
 } from './feat/company'
+import {
+  match
+} from 'ringcentral-embeddable-extension-common/src/common/db'
 
 import {
   fetchAllContacts
@@ -293,21 +296,30 @@ export function thirdPartyServiceConfig (serviceName) {
 
   let services = {
     name: serviceName,
-    callLoggerEnabled: true
+    callLoggerEnabled: true,
+    contactMatcherEnabled: true
   }
 
   let handleRCEvents = async e => {
     const { payload = {}, requestId } = e.data || {}
+    console.log('payload', payload)
     if (payload.requestType === 'rc-ev-logCall') {
-      console.log('logCall:', payload.data)
       const { data } = payload
       data.triggerType = 'auto'
-      data.description = data.task.note
-      syncCallLogToThirdParty(payload.data)
+      data.description = data.task.notes
+      syncCallLogToThirdParty(data)
       sendMsgToRCIframe({
         type: 'MessageTransport-response',
         requestId,
         result: 'ok'
+      }, true)
+    } else if (payload.requestType === 'rc-ev-matchContacts') {
+      const phoneNumbers = payload.data.map(q => q.phoneNumber)
+      const res = await match(phoneNumbers)
+      sendMsgToRCIframe({
+        type: 'MessageTransport-response',
+        requestId,
+        result: res
       }, true)
     }
   }

@@ -51,7 +51,7 @@ function notifySyncSuccess ({
         ${logType} log synced to hubspot!
       </div>
       <div class="rc-pd1b">
-        <a href="${url}" target="_blank">
+        <a href="${url}">
           <img src="${extLinkSvg}" width=16 height=16 class="rc-iblock rc-mg1r" />
           <span class="rc-iblock">
             Check contact activities
