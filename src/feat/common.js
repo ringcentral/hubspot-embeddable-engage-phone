@@ -25,7 +25,7 @@ export function getPortalId () {
 }
 window.rc = {
   local: {
-    accessToken: null
+    accessToken: true
   },
   postMessage: sendMsgToRCIframe,
   currentUserId: '',

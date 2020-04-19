@@ -16,7 +16,7 @@ import {
 } from 'ringcentral-embeddable-extension-common/src/common/db'
 
 function onCancel () {
-  document.querySelector('.rc-sync-form').classList.remove('rc-sync-show')
+  document.querySelector('#rc-sync-form').classList.remove('rc-sync-show')
 }
 
 let handler = null
@@ -25,7 +25,7 @@ function clean () {
   clearTimeout(handler)
 }
 
-async function getContactInfo (body, serviceName) {
+export async function getContactInfo (body, serviceName) {
   if (!body) {
     return
   }
@@ -112,12 +112,12 @@ export async function createForm (body, serviceName, onSubmit) {
   clean()
   let res = await getContactInfo(body, serviceName)
   if (!res) {
-    return notify('No related contact')
+    return notify('No related contact, you may need resync contact data.')
   }
   let { froms, tos, time } = res
   // let wrapper = document.getElementById('rc-widget')
   let dom = createElementFromHTML(`
-    <form class="rc-sync-form animate">
+    <form class="rc-sync-form animate" id="rc-sync-form">
       <div class="rc-sync-inner rc-pd2">
         <h4 class="rc-sync-title rc-pd1b">
           Sync call log to ${serviceName}
@@ -142,20 +142,20 @@ export async function createForm (body, serviceName, onSubmit) {
   `)
   dom.onsubmit = e => {
     e.preventDefault()
-    let v = dom.querySelector('.rc-sync-area').value
+    let v = dom.querySelector('#rc-sync-form .rc-sync-area').value
     onSubmit({
       description: v || ''
     })
     onCancel()
   }
-  dom.querySelector('.rc-btn-cancel').onclick = onCancel
+  dom.querySelector('#rc-sync-form .rc-btn-cancel').onclick = onCancel
   // dom.querySelector('.rc-sync-area').onchange = e => {
   //   e.preventDefault()
   //   onSubmit()
   // }
-  let old = document.querySelector('.rc-sync-form')
+  let old = document.getElementById('rc-sync-form')
   old && old.remove()
-  document.body.appendChild(dom)
+  document.getElementById('Hubspot-rc').appendChild(dom)
   handler = setTimeout(() => {
     dom.classList.add('rc-sync-show')
   }, 100)

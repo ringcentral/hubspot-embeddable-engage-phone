@@ -4,7 +4,7 @@
 
 import _ from 'lodash'
 import {
-  getCompany, formatCompanyContact
+  getAllCompany, formatCompanyContact
 } from './company'
 import {
   showAuthBtn
@@ -26,12 +26,14 @@ import {
   getByPage,
   match
 } from 'ringcentral-embeddable-extension-common/src/common/db'
+import { setCache, getCache } from 'ringcentral-embeddable-extension-common/src/common/cache'
 
 let {
   serviceName,
   apiServerHS
 } = thirdPartyConfigs
-
+const lastSyncOffset = 'last-sync-offset'
+const lastSyncOffsetCompany = 'last-sync-offset-company'
 /**
  * click contact info panel event handler
  * @param {Event} e
@@ -124,7 +126,7 @@ function buildPhone (contact) {
  * @param {array} contacts
  * @return {array}
  */
-function formatContacts (contacts) {
+export function formatContacts (contacts) {
   return contacts.map(contact => {
     if (contact.companyId) {
       return formatCompanyContact(contact)
@@ -187,37 +189,37 @@ query: ""
 sorts: [{property: "createdate", order: "DESC"}, {property: "vid", order: "DESC"}]
 
  */
-async function getContact (
-  page = 1
+export async function getContact (
+  page = 1, _count = 100, _vidOffset
 ) {
-  let count = 100
-  let vidOffset = (page - 1) * count
+  let count = _count
+  let vidOffset = _vidOffset || (page - 1) * count
   let portalId = getPortalId()
   // https://api.hubapi.com/contacts/v1/lists/all/contacts/all
   //  let url =`${apiServerHS}/contacts/v1/lists/all/contacts/all?count=${count}&vidOffset=${vidOffset}&property=firstname&property=phone&property=lastname&property=mobilephone&property=company`
 
-  let url = `${apiServerHS}/contacts/search/v1/search/contacts?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobile&property=phone&property=email`
-  let data = {
-    offset: vidOffset,
-    count,
-    filterGroups: [
-      {
-        filters: []
-      }
-    ],
-    // properties: [],
-    properties: ['firstname', 'phone', 'lastname', 'mobilephone', 'company'],
-    sorts: [
-      {
-        property: 'createdate',
-        order: 'DESC'
-      }, {
-        property: 'vid',
-        order: 'DESC'
-      }
-    ],
-    query: ''
-  }
+  let url = `${apiServerHS}/contacts/v1/lists/all/contacts/all?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobilephone&property=phone&property=email&property=firstname&property=lastname&property=hubspot_owner_id&vidOffset=${vidOffset}&count=${count}`
+  // let data = {
+  //   offset: vidOffset,
+  //   count,
+  //   filterGroups: [
+  //     {
+  //       filters: []
+  //     }
+  //   ],
+  //   // properties: [],
+  //   properties: ['firstname', 'phone', 'lastname', 'mobilephone', 'company'],
+  //   sorts: [
+  //     {
+  //       property: 'createdate',
+  //       order: 'DESC'
+  //     }, {
+  //       property: 'vid',
+  //       order: 'DESC'
+  //     }
+  //   ],
+  //   query: ''
+  // }
   let headers = {
     ...jsonHeader,
     Accept: 'application/json, text/javascript, */*; q=0.01',
@@ -225,9 +227,9 @@ async function getContact (
     'X-HubSpot-CSRF-hubspotapi': getCSRFToken()
   }
   let res = await fetchBg(url, {
-    body: data,
+    // body: data,
     headers,
-    method: 'post'
+    method: 'get'
   })
   if (res && res.contacts) {
     return res
@@ -243,7 +245,7 @@ async function getContact (
 }
 
 export async function fetchAllContacts () {
-  if (!rc.local.accessToken && !window.is_engage_voice) {
+  if (!rc.local.accessToken) {
     showAuthBtn()
     return
   }
@@ -253,31 +255,37 @@ export async function fetchAllContacts () {
   rc.isFetchingContacts = true
   loadingContacts()
   let page = 1
-  let pageCompany = 1
   let hasMore = true
   let hasMoreCompany = true
   let result = []
+  let offset = await getCache(lastSyncOffset) || 0
+  let offsetCompany = await getCache(lastSyncOffsetCompany) || 0
   await remove()
   while (hasMore) {
-    let res = await getContact(page)
+    await setCache(lastSyncOffset, offset, 'never')
+    let res = await getContact(page, undefined, offset)
     if (!res || !res.contacts) {
       return
     }
     result = formatContacts(res.contacts)
     page = page + 1
     hasMore = res['has-more']
+    offset = res['vid-offset']
     await insert(result)
   }
+  await setCache(lastSyncOffset, 0, 'never')
   while (hasMoreCompany) {
-    let res = await getCompany(pageCompany)
+    await setCache(lastSyncOffsetCompany, offsetCompany, 'never')
+    let res = await getAllCompany(offsetCompany)
     if (!res || !res.companies) {
       return
     }
     result = formatContacts(res.companies)
-    pageCompany = pageCompany + 1
     hasMoreCompany = res['has-more']
+    offsetCompany = res['offset']
     await insert(result)
   }
+  await setCache(lastSyncOffsetCompany, 0, 'never')
   rc.isFetchingContacts = false
   stopLoadingContacts()
   notifyReSyncContacts()
@@ -292,41 +300,21 @@ export const getContacts = async (page) => {
     result: [],
     hasMore: false
   }
-  if (!rc.rcLogined) {
-    return final
-  }
-  if (!rc.local.accessToken) {
-    showAuthBtn()
-    return final
-  }
+  // if (!rc.rcLogined) {
+  //   return final
+  // }
+  // if (!rc.local.accessToken) {
+  //   showAuthBtn()
+  //   return final
+  // }
   loadingContacts()
   let cached = await getByPage(page).catch(e => console.log(e.stack))
+  console.log(cached, 'cached')
   if (cached && cached.result && cached.result.length) {
     console.debug('use cache')
     stopLoadingContacts()
     return cached
   }
-  let res = await getContact(page)
-  if (!res || !res.contacts) {
-    res = {
-      contacts: [],
-      'has-more': false
-    }
-  }
-  let res1 = await getCompany(page)
-  if (!res1 || !res1.companies) {
-    res = {
-      companies: [],
-      'has-more': false
-    }
-  }
-  final.result = formatContacts([
-    ...res.contacts,
-    ...res1.companies
-  ])
-  let hasMore = res['has-more']
-  let hasMoreCompany = res1['has-more']
-  final.hasMore = hasMore || hasMoreCompany
   fetchAllContacts()
   return final
 }
@@ -416,13 +404,65 @@ function loadingContacts () {
 
 function stopLoadingContacts () {
   let loadingContactsBtn = document.getElementById('rc-reloading-contacts')
+  window.postMessage({
+    type: 'rc-sync-contact-finished'
+  }, '*')
   if (loadingContactsBtn) {
     loadingContactsBtn.remove()
   }
 }
 
-function notifyReSyncContacts () {
+export function notifyReSyncContacts () {
   rc.postMessage({
     type: 'rc-adapter-sync-third-party-contacts'
   })
+}
+
+export async function getOwnerId (vid) {
+  let count = 1
+  let vidOffset = 0
+  let portalId = getPortalId()
+  // https://api.hubapi.com/contacts/v1/lists/all/contacts/all
+  //  let url =`${apiServerHS}/contacts/v1/lists/all/contacts/all?count=${count}&vidOffset=${vidOffset}&property=firstname&property=phone&property=lastname&property=mobilephone&property=company`
+
+  let url = `${apiServerHS}/contacts/search/v1/search/contacts?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobile&property=phone&property=email&property=hubspot_owner_id`
+  let data = {
+    offset: vidOffset,
+    count,
+    filterGroups: [
+      {
+        filters: []
+      }
+    ],
+    // properties: [],
+    properties: ['firstname', 'phone', 'lastname', 'mobilephone', 'company', 'hubspot_owner_id'],
+    sorts: [
+      {
+        property: 'createdate',
+        order: 'DESC'
+      }, {
+        property: 'vid',
+        order: 'DESC'
+      }
+    ],
+    query: ''
+  }
+  let headers = {
+    ...jsonHeader,
+    Accept: 'application/json, text/javascript, */*; q=0.01',
+    'X-HS-Referer': window.location.href,
+    'X-HubSpot-CSRF-hubspotapi': getCSRFToken()
+  }
+  let res = await fetchBg(url, {
+    body: data,
+    headers,
+    method: 'post'
+  })
+  if (vid) {
+    return _.get(res, 'contacts[0].vid')
+  }
+  return _.get(
+    res,
+    'contacts[0].properties.hubspot_owner_id.value'
+  )
 }

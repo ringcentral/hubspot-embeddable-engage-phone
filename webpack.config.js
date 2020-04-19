@@ -42,6 +42,14 @@ const to4f = path.resolve(
   __dirname,
   'dist-firefox'
 )
+const f31 = path.resolve(
+  __dirname,
+  'node_modules/react/umd/react.production.min.js'
+)
+const f32 = path.resolve(
+  __dirname,
+  'node_modules/react-dom/umd/react-dom.production.min.js'
+)
 const opts = {
   extensions: ['.map', '.js'],
   minBytes: 3900
@@ -73,9 +81,12 @@ var config = {
     chunkFilename: '[name].[hash].js',
     libraryTarget: 'var'
   },
-  watch: true,
   resolve: {
-    extensions: ['.js', '.json']
+    extensions: ['.js', '.json', 'jsx']
+  },
+  externals: {
+    react: 'React',
+    'react-dom': 'ReactDOM'
   },
   resolveLoader: {
     modules: [
@@ -95,6 +106,23 @@ var config = {
         ]
       },
       {
+        test: /\.less$/,
+        use: [
+          {
+            loader: 'style-loader'
+          },
+          {
+            loader: 'css-loader'
+          },
+          {
+            loader: 'less-loader',
+            options: {
+              javascriptEnabled: true
+            }
+          }
+        ]
+      },
+      {
         test: /\.jsx?$/,
         exclude: /node_modules\/(?!(ringcentral-embeddable-extension-common)\/).*/,
         use: [
@@ -103,7 +131,13 @@ var config = {
             options: {
               cacheDirectory: true,
               presets: [
-                '@babel/preset-env'
+                '@babel/react',
+                ['@babel/env', {
+                  targets: {
+                    chrome: 58,
+                    node: 'current'
+                  }
+                }]
               ],
               plugins: [
                 '@babel/plugin-proposal-class-properties',
@@ -119,6 +153,14 @@ var config = {
                   '@babel/plugin-transform-runtime',
                   {
                     regenerator: true
+                  }
+                ],
+                [
+                  'import',
+                  {
+                    libraryName: 'antd',
+                    libraryDirectory: 'es',
+                    style: true
                   }
                 ]
               ]
@@ -180,6 +222,24 @@ var config = {
     }, */
     {
       from: f3,
+      to: to4f,
+      force: true
+    }, {
+      from: f31,
+      to: to4,
+      force: true
+    },
+    {
+      from: f31,
+      to: to4f,
+      force: true
+    }, {
+      from: f32,
+      to: to4,
+      force: true
+    },
+    {
+      from: f32,
       to: to4f,
       force: true
     }], {}),

@@ -16,7 +16,6 @@ import {
 } from 'ringcentral-embeddable-extension-common/src/common/helpers'
 import { upgrade } from 'ringcentral-embeddable-extension-common/src/feat/upgrade-notification'
 import { thirdPartyConfigs } from 'ringcentral-embeddable-extension-common/src/common/app-config'
-import * as ls from 'ringcentral-embeddable-extension-common/src/common/ls'
 import fetchBg from 'ringcentral-embeddable-extension-common/src/common/fetch-with-background'
 import { jsonHeader } from 'ringcentral-embeddable-extension-common/src/common/fetch'
 import { getCSRFToken, getIds, rc } from './feat/common'
@@ -27,13 +26,14 @@ import {
 import {
   match
 } from 'ringcentral-embeddable-extension-common/src/common/db'
+import { initReactModule } from './feat/react-entry'
 
 import {
-  fetchAllContacts
+  fetchAllContacts,
+  formatContacts
 } from './feat/contacts.js'
 
 import {
-  notifyRCAuthed,
   renderAuthButton
 } from './feat/auth'
 import {
@@ -42,34 +42,19 @@ import {
 
 window.is_engage_voice = true
 
-fetchAllContacts()
-
 let {
   apiServerHS
 } = thirdPartyConfigs
 
-let phoneTypeDict = {
-  phone: 'Phone number',
-  company: 'Company phone number',
-  mobilephone: 'Mobile phone number'
-}
-
 function formatNumbers (res) {
-  return Object.keys(res).reduce((prev, k) => {
-    let v = res[k]
-    if (!v) {
-      return prev
+  const r = formatContacts([res])[0]
+  return r.phoneNumbers.map(p => {
+    return {
+      id: p.phoneNumber,
+      title: 'Direct',
+      number: p.phoneNumber
     }
-    return [
-      ...prev,
-      {
-        id: k,
-        title: phoneTypeDict[k],
-        number: v.rawNumber
-      }
-    ]
-  }, [])
-    .filter(o => checkPhoneNumber(o.number))
+  })
 }
 
 async function getNumbers (ids = getIds()) {
@@ -80,7 +65,7 @@ async function getNumbers (ids = getIds()) {
     portalId,
     vid
   } = ids
-  let url = `${apiServerHS}/twilio/v1/phonenumberinfo/contactPhoneNumbersByProperty?portalId=${portalId}&clienttimeout=14000&contactVid=${vid}`
+  let url = `${apiServerHS}/contacts/v1/contact/vid/${vid}/profile?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobilephone&property=phone&property=email&property=hubspot_owner_id`
   let csrf = getCSRFToken()
   let res = await fetchBg(url, {
     headers: {
@@ -302,7 +287,7 @@ export function thirdPartyServiceConfig (serviceName) {
 
   let handleRCEvents = async e => {
     const { payload = {}, requestId } = e.data || {}
-    console.log('payload', payload)
+    console.debug('payload', payload)
     if (payload.requestType === 'rc-ev-logCall') {
       const { data } = payload
       data.triggerType = 'auto'
@@ -339,19 +324,15 @@ export async function initThirdParty () {
   let userId = getUserId()
   rc.currentUserId = userId
   rc.cacheKey = 'contacts' + '_' + userId
-  let accessToken = await ls.get('accessToken') || null
-  if (accessToken) {
-    rc.local = {
-      accessToken
-    }
-  }
 
   // get the html ready
   renderAuthButton()
 
-  if (rc.local.accessToken) {
-    notifyRCAuthed()
-  }
+  // if (rc.local.accessToken) {
+  //   notifyRCAuthed()
+  // }
 
   upgrade()
+
+  initReactModule()
 }
