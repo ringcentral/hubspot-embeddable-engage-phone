@@ -29,7 +29,6 @@ import {
 import { initReactModule } from './feat/react-entry'
 
 import {
-  fetchAllContacts,
   formatContacts
 } from './feat/contacts.js'
 

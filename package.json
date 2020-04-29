@@ -1,6 +1,6 @@
 {
   "name": "engage-voice-browser-extension-hubspot",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Experimental Engage Voice browser extension for Hubspot",
   "main": "index.js",
   "scripts": {
@@ -65,7 +65,7 @@
     "react-dom": "16.13.0",
     "react-draggable": "^4.2.0",
     "recursive-assign": "0.2.0",
-    "ringcentral-embeddable-extension-common": "0.8.7",
+    "ringcentral-embeddable-extension-common": "0.9.0",
     "shelljs": "^0.8.2",
     "standard": "^12.0.1",
     "style-loader": "0.21.0",
