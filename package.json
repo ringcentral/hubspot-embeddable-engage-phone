@@ -1,6 +1,6 @@
 {
   "name": "engage-voice-browser-extension-hubspot",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Experimental Engage Voice browser extension for Hubspot",
   "main": "index.js",
   "scripts": {
