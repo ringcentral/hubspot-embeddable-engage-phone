@@ -15,15 +15,15 @@ import {
   formatPhone
 } from 'ringcentral-embeddable-extension-common/src/common/helpers'
 import fetchBg from 'ringcentral-embeddable-extension-common/src/common/fetch-with-background'
-import { commonFetchOptions, rc, getPortalId, formatPhoneLocal, getEmail } from './common'
+import { commonFetchOptions, rc, getPortalId, formatPhoneLocal, getEmail, autoLogPrefix } from './common'
 import { getDeals } from './deal'
-import dayjs from 'dayjs'
 import {
   match
 } from 'ringcentral-embeddable-extension-common/src/common/db'
 import getOwnerId from './get-owner-id'
 import * as ls from 'ringcentral-embeddable-extension-common/src/common/ls'
 import copy from 'json-deep-copy'
+import dayjs from 'dayjs'
 
 let {
   showCallLogSyncForm,
@@ -98,7 +98,6 @@ function checkMerge (body) {
 }
 
 export async function syncCallLogToThirdParty (body) {
-  console.log(new Date().getTime(), '---')
   // let result = _.get(body, 'call.result')
   // if (result !== 'Call connected') {
   //   return
@@ -122,7 +121,9 @@ export async function syncCallLogToThirdParty (body) {
       !contactRelated ||
       (!contactRelated.froms && !contactRelated.tos)
     ) {
-      return notify('No related contact')
+      const b = copy(body)
+      b.type = 'rc-show-add-contact-panel'
+      return window.postMessage(b, '*')
     }
     return createForm(
       body,
@@ -200,7 +201,6 @@ export async function getCompanyId (contactId) {
       },
       timeoutMillis: 5000,
       types: [
-        'MINKOWSKI',
         'CONTACT',
         'CONTACT_ASSOCIATIONS_FIRST_PAGE'
       ]
@@ -211,7 +211,7 @@ export async function getCompanyId (contactId) {
   if (res && res.data) {
     companyId = _.get(res, 'data.CONTACT.properties.associatedcompanyid.value') + ''
   } else {
-    console.log('fetch ownerId error')
+    console.log('fetch company error')
     console.log(res)
   }
   return companyId
@@ -238,15 +238,20 @@ function buildMsgs (body) {
   let msgs = _.get(body, 'conversation.messages')
   const arr = []
   for (const m of msgs) {
-    let desc = m.direction === 'Outbound'
-      ? 'to'
-      : 'from'
-    let n = m.direction === 'Outbound'
-      ? m.to
-      : [m.from]
-    n = n.map(m => formatPhoneLocal(m.phoneNumber)).join(', ')
+    const fromN = _.get(m, 'from.phoneNumber') ||
+      _.get(m, 'from[0].phoneNumber') || ''
+    const fromName = _.get(m, 'from.name') ||
+      (_.get(m, 'from') || []).map(d => d.name).join(', ') || ''
+    const toN = _.get(m, 'to.phoneNumber') ||
+      _.get(m, 'to[0].phoneNumber') || ''
+    const toName = _.get(m, 'to.name') ||
+      (_.get(m, 'to') || []).map(d => d.name).join(', ') || ''
+    const from = fromN +
+      (fromName ? `(${fromName})` : '')
+    const to = toN +
+      (toName ? `(${toName})` : '')
     arr.push({
-      body: `<p>SMS: <b>${m.subject}</b> - ${desc} <b>${n}</b> - ${dayjs(m.creationTime).format('MMM DD, YYYY HH:mm')}</p>`,
+      body: `<p>SMS: <b>${m.subject}</b> - from <b>${from}</b> to <b>${to}</b> - ${dayjs(m.creationTime).format('MMM DD, YYYY HH:mm')}</p>`,
       id: m.id
     })
   }
@@ -321,6 +326,12 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   if (!contactId) {
     return notify('No related contact', 'warn')
   }
+  let desc = formData.description
+  const sid = _.get(body, 'call.telephonySessionId') || 'not-exist'
+  const sessid = autoLogPrefix + sid
+  if (!isManuallySync) {
+    desc = await ls.get(sessid) || ''
+  }
   const type = isCompany ? 'COMPANY' : 'CONTACT'
   let ownerId = await getOwnerId(contact.id, type)
   if (!ownerId) {
@@ -331,12 +342,15 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   let contactIds = isCompany ? [] : [Number(contactId)]
   let toNumber = _.get(body, 'call.to.phoneNumber')
   let fromNumber = _.get(body, 'call.from.phoneNumber')
+  let fmtime = dayjs(_.get(body, 'call.startTime')).format('MMM DD, YYYY h:mm A')
   let status = 'COMPLETED'
   let durationMilliseconds = _.get(body, 'call.duration')
   durationMilliseconds = durationMilliseconds
     ? durationMilliseconds * 1000
     : undefined
-  let externalId = _.get(body, 'call.id')
+  let externalId = body.id ||
+    _.get(body, 'call.sessionId') ||
+    _.get(body, 'conversation.conversationLogId')
   let recording = _.get(body, 'call.recording')
     ? `<p>Recording link: ${body.call.recording.link}</p>`
     : ''
@@ -345,17 +359,13 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   let ctype = _.get(body, 'conversation.type')
   let isVoiceMail = ctype === 'VoiceMail'
   if (body.call) {
-    const {
-      fromMatches = [],
-      toMatches = []
-    } = body.call
-    mainBody = `[${_.get(body, 'call.direction')} ${_.get(body, 'call.telephonyStatus')}] CALL from <b>${fromMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(fromNumber)}</b>) to <b>${toMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(toNumber)}</b>)`
+    mainBody = `${fmtime}: [${_.get(body, 'call.direction')} ${_.get(body, 'call.result')}] CALL from <b>${body.call.fromMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(fromNumber)}</b>) to <b>${body.call.toMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(toNumber)}</b>)`
   } else if (ctype === 'SMS') {
     mainBody = buildMsgs(body)
   } else if (isVoiceMail) {
     mainBody = buildVoiceMailMsgs(body)
   }
-  let interactionType = body.call || isVoiceMail ? 'CALL' : 'NOTE'
+  let interactionType = 'CALL' // body.call || isVoiceMail ? 'CALL' : 'NOTE'
   let logType = body.call || isVoiceMail ? 'Call' : ctype
   if (!_.isArray(mainBody)) {
     mainBody = [{
@@ -369,7 +379,7 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   let bodyAll = mainBody.map(mm => {
     return {
       id: mm.id,
-      body: `<p>${body.description || ''}</p><p>${mm.body}</p>${recording}`
+      body: `<p>${desc || ''}</p><p>${mm.body}</p>${recording}`
     }
   })
   for (const uit of bodyAll) {
@@ -480,17 +490,3 @@ export async function findMatchCallLog (data) {
   }, {})
   return x
 }
-
-/**
-Contact to engagement 9
-get
-/crm-associations/v1/associations/:objectId/HUBSPOT_DEFINED/:definitionId?limit=100&offset=0
-{
-  "results": [
-    259674,
-    259727
-  ],
-  "hasMore": false,
-  "offset": 259727
-}
- */

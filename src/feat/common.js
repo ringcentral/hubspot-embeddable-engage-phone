@@ -20,12 +20,11 @@ export function getPortalId () {
       window.location.href.match(/https:\/\/app\.hubspot\.com\/[^/]+\/(\d+)/), '[1]'
     )
   }
-  console.log('portal id:', pid)
   return pid
 }
 window.rc = {
   local: {
-    accessToken: true
+    accessToken: 1
   },
   postMessage: sendMsgToRCIframe,
   currentUserId: '',
@@ -33,7 +32,7 @@ window.rc = {
   cacheKey: 'contacts' + '_' + '',
   updateToken: async (newToken, type = 'accessToken') => {
     if (!newToken) {
-      await ls.clear()
+      await ls.remove(type)
       rc.local = {
         accessToken: null
       }
@@ -91,3 +90,5 @@ export function getEmail () {
   }
   return emailDom.textContent.trim()
 }
+
+export const autoLogPrefix = 'rc-ev-auto-log-id:'

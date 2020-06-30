@@ -32,8 +32,10 @@ let {
   serviceName,
   apiServerHS
 } = thirdPartyConfigs
+
 const lastSyncOffset = 'last-sync-offset'
 const lastSyncOffsetCompany = 'last-sync-offset-company'
+
 /**
  * click contact info panel event handler
  * @param {Event} e
@@ -190,15 +192,20 @@ sorts: [{property: "createdate", order: "DESC"}, {property: "vid", order: "DESC"
 
  */
 export async function getContact (
-  page = 1, _count = 100, _vidOffset
+  page = 1,
+  _count = 100,
+  _vidOffset,
+  getRecent = false
 ) {
   let count = _count
   let vidOffset = _vidOffset || (page - 1) * count
   let portalId = getPortalId()
   // https://api.hubapi.com/contacts/v1/lists/all/contacts/all
   //  let url =`${apiServerHS}/contacts/v1/lists/all/contacts/all?count=${count}&vidOffset=${vidOffset}&property=firstname&property=phone&property=lastname&property=mobilephone&property=company`
-
-  let url = `${apiServerHS}/contacts/v1/lists/all/contacts/all?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobilephone&property=phone&property=email&property=firstname&property=lastname&property=hubspot_owner_id&vidOffset=${vidOffset}&count=${count}`
+  const baseUrl = getRecent
+    ? '/contacts/v1/lists/recently_updated/contacts/recent'
+    : '/contacts/v1/lists/all/contacts/all'
+  let url = `${apiServerHS}${baseUrl}?resolveOwner=false&showSourceMetadata=false&identityProfileMode=all&showPastListMemberships=false&formSubmissionMode=none&showPublicToken=false&propertyMode=value_only&showAnalyticsDetails=false&resolveAssociations=true&portalId=${portalId}&clienttimeout=14000&property=mobilephone&property=phone&property=email&property=firstname&property=lastname&property=hubspot_owner_id&vidOffset=${vidOffset}&count=${count}`
   // let data = {
   //   offset: vidOffset,
   //   count,
@@ -238,13 +245,13 @@ export async function getContact (
     console.log(res)
     return {
       contacts: [],
-      'has-more': false,
+      'has-more': true,
       'offset': vidOffset
     }
   }
 }
 
-export async function fetchAllContacts () {
+export async function fetchAllContacts (_getRecent) {
   if (!rc.local.accessToken) {
     showAuthBtn()
     return
@@ -252,41 +259,75 @@ export async function fetchAllContacts () {
   if (rc.isFetchingContacts) {
     return
   }
+  let getRecent = !!_getRecent
   rc.isFetchingContacts = true
   loadingContacts()
   let page = 1
   let hasMore = true
   let hasMoreCompany = true
   let result = []
-  let offset = await getCache(lastSyncOffset) || 0
-  let offsetCompany = await getCache(lastSyncOffsetCompany) || 0
-  await remove()
-  while (hasMore) {
-    await setCache(lastSyncOffset, offset, 'never')
-    let res = await getContact(page, undefined, offset)
-    if (!res || !res.contacts) {
-      return
+  const syncOffset = lastSyncOffset
+  const syncOffsetCom = lastSyncOffsetCompany
+  let offset = await getCache(syncOffset) || 0
+  let offsetCompany = await getCache(syncOffsetCom) || 0
+  console.debug(offset, 'offset', getRecent)
+  console.debug(offsetCompany, 'offsetCompany')
+  let dbTest = await getByPage(1, 1)
+  console.debug('getRecent', getRecent)
+  console.debug('dbTest', dbTest)
+  if (!dbTest || !dbTest.count || offset || offsetCompany) {
+    getRecent = false
+  }
+  console.debug('getRecent2', getRecent)
+  if (!getRecent && !offset && !offsetCompany) {
+    await remove()
+  }
+  let countRecentMax = 3
+  let countRecent = 0
+  let countRecentCompanyMax = 3
+  let countRecentCompany = 0
+  while (
+    hasMore &&
+    (countRecent < countRecentMax)
+  ) {
+    if (!getRecent) {
+      await setCache(syncOffset, offset, 'never')
     }
+    let res = await getContact(page, undefined, offset, getRecent)
     result = formatContacts(res.contacts)
     page = page + 1
     hasMore = res['has-more']
     offset = res['vid-offset']
+    if (getRecent) {
+      countRecent++
+    }
     await insert(result)
   }
-  await setCache(lastSyncOffset, 0, 'never')
-  while (hasMoreCompany) {
-    await setCache(lastSyncOffsetCompany, offsetCompany, 'never')
-    let res = await getAllCompany(offsetCompany)
-    if (!res || !res.companies) {
-      return
+  if (!getRecent) {
+    await setCache(syncOffset, 0, 'never')
+  }
+  while (
+    hasMoreCompany &&
+    (countRecentCompany < countRecentCompanyMax)
+  ) {
+    if (!getRecent) {
+      await setCache(syncOffsetCom, offsetCompany, 'never')
     }
+    let res = await getAllCompany(offsetCompany, undefined, getRecent)
     result = formatContacts(res.companies)
     hasMoreCompany = res['has-more']
     offsetCompany = res['offset']
+    if (getRecent) {
+      countRecentCompany++
+    }
     await insert(result)
   }
-  await setCache(lastSyncOffsetCompany, 0, 'never')
+  if (!getRecent) {
+    await setCache(syncOffsetCom, 0, 'never')
+  }
   rc.isFetchingContacts = false
+  rc.syncTimeStamp = Date.now()
+  await setCache('rc-sync-timestamp', rc.syncTimeStamp, 'never')
   stopLoadingContacts()
   notifyReSyncContacts()
   notify('Syncing contacts done', 'info', 1000)
@@ -300,22 +341,20 @@ export const getContacts = async (page) => {
     result: [],
     hasMore: false
   }
-  // if (!rc.rcLogined) {
-  //   return final
-  // }
-  // if (!rc.local.accessToken) {
-  //   showAuthBtn()
-  //   return final
-  // }
-  loadingContacts()
+  if (!rc.rcLogined) {
+    return final
+  }
+  if (!rc.local.accessToken) {
+    showAuthBtn()
+    return final
+  }
   let cached = await getByPage(page).catch(e => console.log(e.stack))
-  console.log(cached, 'cached')
   if (cached && cached.result && cached.result.length) {
     console.debug('use cache')
-    stopLoadingContacts()
     return cached
+  } else {
+    fetchAllContacts()
   }
-  fetchAllContacts()
   return final
 }
 
@@ -396,7 +435,7 @@ function loadingContacts () {
       class="rc-reloading-contacts"
       id="rc-reloading-contacts"
       title="Reload contacts"
-    />Syncing contacts</span>
+    />Syncing contacts, please stay in this page until it is done</span>
     `
   )
   document.body.appendChild(elem)
@@ -404,9 +443,6 @@ function loadingContacts () {
 
 function stopLoadingContacts () {
   let loadingContactsBtn = document.getElementById('rc-reloading-contacts')
-  window.postMessage({
-    type: 'rc-sync-contact-finished'
-  }, '*')
   if (loadingContactsBtn) {
     loadingContactsBtn.remove()
   }

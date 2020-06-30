@@ -24,17 +24,14 @@ import {
   getCompanyById
 } from './feat/company'
 import {
-  match
+  match, getByPage
 } from 'ringcentral-embeddable-extension-common/src/common/db'
 import { initReactModule } from './feat/react-entry'
-
+import initReact from './lib/react-entry'
 import {
   formatContacts
 } from './feat/contacts.js'
-
-import {
-  renderAuthButton
-} from './feat/auth'
+import { resyncCheck } from './lib/auto-resync'
 import {
   syncCallLogToThirdParty
 } from './feat/log-sync.js'
@@ -286,7 +283,7 @@ export function thirdPartyServiceConfig (serviceName) {
 
   let handleRCEvents = async e => {
     const { payload = {}, requestId } = e.data || {}
-    console.debug('payload', payload)
+    console.debug('payload', payload, e)
     if (payload.requestType === 'rc-ev-logCall') {
       const { data } = payload
       data.triggerType = 'auto'
@@ -325,7 +322,7 @@ export async function initThirdParty () {
   rc.cacheKey = 'contacts' + '_' + userId
 
   // get the html ready
-  renderAuthButton()
+  // renderAuthButton()
 
   // if (rc.local.accessToken) {
   //   notifyRCAuthed()
@@ -334,4 +331,7 @@ export async function initThirdParty () {
   upgrade()
 
   initReactModule()
+  initReact()
+  const db = await getByPage(1, 1)
+  resyncCheck(db && db.count)
 }
