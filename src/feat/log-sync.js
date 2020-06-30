@@ -359,7 +359,11 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   let ctype = _.get(body, 'conversation.type')
   let isVoiceMail = ctype === 'VoiceMail'
   if (body.call) {
-    mainBody = `${fmtime}: [${_.get(body, 'call.direction')} ${_.get(body, 'call.result')}] CALL from <b>${body.call.fromMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(fromNumber)}</b>) to <b>${body.call.toMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(toNumber)}</b>)`
+    const {
+      fromMatches = [],
+      toMatches = []
+    } = body.call
+    mainBody = `${fmtime}: [${_.get(body, 'call.direction')} ${_.get(body, 'call.result') || 'Connected'}] CALL from <b>${fromMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(fromNumber)}</b>) to <b>${toMatches.map(d => d.name).join(', ')}</b>(<b>${formatPhoneLocal(toNumber)}</b>)`
   } else if (ctype === 'SMS') {
     mainBody = buildMsgs(body)
   } else if (isVoiceMail) {
