@@ -2,7 +2,7 @@ import { Tooltip } from 'antd'
 import { useState, useEffect } from 'react'
 import { SyncOutlined } from '@ant-design/icons'
 // import * as ls from 'ringcentral-embeddable-extension-common/src/common/ls'
-import { fetchAllContacts } from './contacts'
+import { getContacts } from './contacts'
 
 export default function Index () {
   const [syncing, setSync] = useState(false)
@@ -29,7 +29,7 @@ export default function Index () {
   useEffect(() => {
     console.log('run useEffect')
     window.addEventListener('message', onEvent)
-    fetchAllContacts(0)
+    getContacts()
     return () => {
       window.removeEventListener('message', onEvent)
     }
