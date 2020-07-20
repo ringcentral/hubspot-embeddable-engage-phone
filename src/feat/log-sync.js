@@ -349,7 +349,7 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
     ? durationMilliseconds * 1000
     : undefined
   let externalId = body.id ||
-    _.get(body, 'call.sessionId') ||
+    _.get(body, 'call.id') ||
     _.get(body, 'conversation.conversationLogId')
   let recording = _.get(body, 'call.recording')
     ? `<p>Recording link: ${body.call.recording.link}</p>`
