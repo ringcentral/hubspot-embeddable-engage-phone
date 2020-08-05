@@ -15,7 +15,7 @@ import {
   formatPhone
 } from 'ringcentral-embeddable-extension-common/src/common/helpers'
 import fetchBg from 'ringcentral-embeddable-extension-common/src/common/fetch-with-background'
-import { commonFetchOptions, rc, getPortalId, formatPhoneLocal, getEmail, autoLogPrefix } from './common'
+import { commonFetchOptions, rc, getPortalId, formatPhoneLocal, getEmail } from './common'
 import { getDeals } from './deal'
 import {
   match
