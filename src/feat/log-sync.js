@@ -326,12 +326,7 @@ async function doSyncOne (contact, body, formData, isManuallySync) {
   if (!contactId) {
     return notify('No related contact', 'warn')
   }
-  let desc = formData.description
-  const sid = _.get(body, 'call.telephonySessionId') || 'not-exist'
-  const sessid = autoLogPrefix + sid
-  if (!isManuallySync) {
-    desc = await ls.get(sessid) || ''
-  }
+  let desc = body.description
   const type = isCompany ? 'COMPANY' : 'CONTACT'
   let ownerId = await getOwnerId(contact.id, type)
   if (!ownerId) {
