@@ -1,7 +1,7 @@
 {
   "name": "RingCentral Embeddable Engage Voice for HubSpot",
   "description": "Experimental Engage Voice browser extension for Hubspot",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "permissions": [
     "http://*/",
     "https://*/",
