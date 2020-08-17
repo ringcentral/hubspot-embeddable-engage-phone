@@ -1,6 +1,6 @@
 {
   "name": "hubspot-embeddable-engage-phone",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "description": "Experimental Engage Voice browser extension for Hubspot",
   "main": "index.js",
   "scripts": {
