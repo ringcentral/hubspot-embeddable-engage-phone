@@ -129,7 +129,7 @@ export const insertClickToCallButton = [
     parentsToInsertButton: [
       {
         getElem: () => {
-          let p = document.querySelector('[data-unit-test="highlightSubtitle"]')
+          const p = document.querySelector('[data-unit-test="highlightSubtitle"]') || document.querySelector('[data-selenium-test="contact-highlight-details"]')
           return p
             ? p.parentNode.parentNode : null
         },
